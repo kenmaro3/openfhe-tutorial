@@ -502,12 +502,10 @@ Struct_key_and_context initialize_context_and_keys(int attrs, int bs) {
     return res;
 }
 
-void SimpleBootstrapExample();
 
 Struct_data_for_linear_regression prepare_linear_regression(int attrs, int ds, int bs);
 
 int main(int argc, char* argv[]) {
-    //SimpleBootstrapExample();
 
     int attrs = 10;
     int ds    = 100;
@@ -630,91 +628,9 @@ int main(int argc, char* argv[]) {
 Struct_data_for_linear_regression prepare_linear_regression(int attrs, int ds, int bs) {
     vector<double> w = get_random_vector(attrs);
     double b         = get_random();
-    //print_vector(w);
     vector<vector<double>> xs = get_random_matrix(attrs, ds);
-    //print_matrix(xs);
     vector<double> ys = calculate_y(xs, w, b);
-
-    //Struct_VVVD_VVD batched_data = make_mini_batches(xs, ys, bs);
-    //print_matrix(batched_data.data1[0]);
-    //print_matrix(batched_data.data2);
 
     Struct_data_for_linear_regression res = {xs, ys, w, b};
     return res;
-}
-
-void SimpleBootstrapExample() {
-    CCParams<CryptoContextCKKSRNS> parameters;
-    SecretKeyDist secretKeyDist = UNIFORM_TERNARY;
-    parameters.SetSecretKeyDist(secretKeyDist);
-    parameters.SetSecurityLevel(HEStd_NotSet);
-    parameters.SetRingDim(1 << 12);
-
-#if NATIVEINT == 128 && !defined(__EMSCRIPTEN__)
-    ScalingTechnique rescaleTech = FIXEDAUTO;
-    usint dcrtBits               = 78;
-    usint firstMod               = 89;
-#else
-    ScalingTechnique rescaleTech = FLEXIBLEAUTO;
-    usint dcrtBits               = 59;
-    usint firstMod               = 60;
-#endif
-
-    parameters.SetScalingModSize(dcrtBits);
-    parameters.SetScalingTechnique(rescaleTech);
-    parameters.SetFirstModSize(firstMod);
-
-    std::vector<uint32_t> levelBudget = {4, 4};
-    uint32_t approxBootstrapDepth     = 8;
-
-    uint32_t levelsUsedBeforeBootstrap = 12;
-    usint depth =
-        levelsUsedBeforeBootstrap + FHECKKSRNS::GetBootstrapDepth(approxBootstrapDepth, levelBudget, secretKeyDist);
-    parameters.SetMultiplicativeDepth(depth);
-
-    printf("this is my depth %d\n", depth);
-
-    CryptoContext<DCRTPoly> cryptoContext = GenCryptoContext(parameters);
-
-    cryptoContext->Enable(PKE);
-    cryptoContext->Enable(KEYSWITCH);
-    cryptoContext->Enable(LEVELEDSHE);
-    cryptoContext->Enable(ADVANCEDSHE);
-    cryptoContext->Enable(FHE);
-
-    usint ringDim = cryptoContext->GetRingDimension();
-    // This is the maximum number of slots that can be used for full packing.
-    usint numSlots = ringDim / 2;
-    std::cout << "CKKS scheme is using ring dimension " << ringDim << std::endl << std::endl;
-
-    cryptoContext->EvalBootstrapSetup(levelBudget);
-
-    auto keyPair = cryptoContext->KeyGen();
-    cryptoContext->EvalMultKeyGen(keyPair.secretKey);
-    cryptoContext->EvalBootstrapKeyGen(keyPair.secretKey, numSlots);
-
-    // Making plaintext vector
-    std::vector<double> x;
-    for (int i = 0; i < 10; i++) {
-        x.push_back(i - 5);
-    }
-    size_t encodedLength = x.size();
-
-    Plaintext ptxt = cryptoContext->MakeCKKSPackedPlaintext(x, 1, 0);
-
-    ptxt->SetLength(encodedLength);
-    std::cout << "Input: " << ptxt << std::endl;
-
-    // Encryption
-    Ciphertext<DCRTPoly> c = cryptoContext->Encrypt(keyPair.publicKey, ptxt);
-
-    for (int i = 0; i < 10; i++) {
-        // Bootstrapping
-        c = cryptoContext->EvalBootstrap(c);
-        // Decryption
-        Plaintext res_c;
-        cryptoContext->Decrypt(keyPair.secretKey, c, &res_c);
-        res_c->SetLength(encodedLength);
-        std::cout << "res_c\n\t" << res_c << std::endl;
-    }
 }
